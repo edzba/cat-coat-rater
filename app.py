@@ -12,7 +12,7 @@ from google.oauth2.service_account import Credentials
 IMAGES_DIR = Path("images")
 REFERENCE_IMAGE = Path("reference/reference.png")
 RATINGS_FILE = Path("ratings.csv")
-SHEET_NAME = "cat_coat_ratings"
+SHEET_NAME = st.secrets.get("GOOGLE_SHEET_NAME", "cat_coat_ratings")
 WORKSHEET_NAME = "ratings"
 GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
