@@ -4,12 +4,20 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import gspread
 import streamlit as st
+from google.oauth2.service_account import Credentials
 
 
 IMAGES_DIR = Path("images")
 REFERENCE_IMAGE = Path("reference/reference.png")
 RATINGS_FILE = Path("ratings.csv")
+SHEET_NAME = "cat_coat_ratings"
+WORKSHEET_NAME = "ratings"
+GOOGLE_SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 CSV_HEADER = [
     "participant_id",
@@ -98,9 +106,29 @@ def needs_header():
     return first_row != CSV_HEADER
 
 
-def save_rating(image_path, score, confidence, response_time):
-    submitted_at = datetime.now().isoformat(timespec="seconds")
+@st.cache_resource
+def get_ratings_worksheet():
+    credentials = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=GOOGLE_SCOPES,
+    )
+    client = gspread.authorize(credentials)
+    return client.open(SHEET_NAME).worksheet(WORKSHEET_NAME)
 
+
+def make_rating_row(image_path, score, confidence, response_time):
+    submitted_at = datetime.now().isoformat(timespec="seconds")
+    return [
+        st.session_state.participant_id,
+        image_path.name,
+        score,
+        confidence,
+        round(response_time, 2),
+        submitted_at,
+    ]
+
+
+def save_rating_to_csv(row):
     with RATINGS_FILE.open("a", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file)
 
@@ -108,16 +136,18 @@ def save_rating(image_path, score, confidence, response_time):
             writer.writerow(CSV_HEADER)
             st.session_state.csv_header_ready = True
 
-        writer.writerow(
-            [
-                st.session_state.participant_id,
-                image_path.name,
-                score,
-                confidence,
-                round(response_time, 2),
-                submitted_at,
-            ]
-        )
+        writer.writerow(row)
+
+
+def save_rating_to_google_sheets(row):
+    worksheet = get_ratings_worksheet()
+
+    if not st.session_state.get("google_sheet_header_ready"):
+        if worksheet.row_values(1) != CSV_HEADER:
+            worksheet.insert_row(CSV_HEADER, 1)
+        st.session_state.google_sheet_header_ready = True
+
+    worksheet.append_row(row, value_input_option="USER_ENTERED")
 
 
 st.set_page_config(page_title="Classificador de gatos-do-mato", layout="centered")
@@ -228,6 +258,17 @@ if submitted:
         st.warning("Escolha uma nota válida e a confiança antes de submeter.")
     else:
         response_time = time.time() - st.session_state.image_started_at
-        save_rating(current_image, score, confidence, response_time)
-        go_to_next_image(images)
-        st.rerun()
+        row = make_rating_row(current_image, score, confidence, response_time)
+
+        try:
+            save_rating_to_google_sheets(row)
+        except Exception as error:
+            st.error(f"Não foi possível salvar no Google Sheets: {error}")
+        else:
+            try:
+                save_rating_to_csv(row)
+            except Exception as error:
+                st.warning(f"Resposta salva no Google Sheets, mas não no CSV local: {error}")
+
+            go_to_next_image(images)
+            st.rerun()

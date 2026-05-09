@@ -21,13 +21,39 @@ Opcional: coloque uma imagem de referencia em `reference/reference.png`. Se ela 
 pip install -r requirements.txt
 ```
 
-3. Rode o app:
+3. Configure o Google Sheets:
+
+- crie uma planilha chamada `cat_coat_ratings`;
+- crie uma aba chamada `ratings`;
+- compartilhe a planilha com o email da service account do Google Cloud.
+
+4. Configure os secrets do Streamlit.
+
+No Streamlit Community Cloud, adicione as credenciais em `Secrets` usando este formato:
+
+```toml
+[gcp_service_account]
+type = "service_account"
+project_id = "..."
+private_key_id = "..."
+private_key = """-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----"""
+client_email = "..."
+client_id = "..."
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url = "..."
+```
+
+5. Rode o app:
 
 ```bash
 streamlit run app.py
 ```
 
-4. No navegador:
+6. No navegador:
 
 - informe o nome do avaliador;
 - escolha o numero de rodadas, que comeca em 3 por padrao;
@@ -36,7 +62,7 @@ streamlit run app.py
 - escolha a confianca de 1 a 5;
 - clique em `Submeter`.
 
-Cada resposta sera salva no arquivo `ratings.csv`.
+Cada resposta sera salva no Google Sheets e tambem no arquivo `ratings.csv` como backup simples.
 
 Uma rodada significa que cada imagem aparece uma vez. Se voce escolher 3 rodadas, cada imagem aparecera 3 vezes no total. O app tambem salva quanto tempo a pessoa demorou para classificar cada imagem.
 
